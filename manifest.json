@@ -11,7 +11,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://maang.in/problems/*"
+        "https://maang.in/*"
       ],
       "js": [
         "content.js"
@@ -26,16 +26,17 @@
       "resources": [
         "assets/bookmark.png",
         "assets/delete.png",
-        "assets/play.png"
+        "assets/play.png",
+        "assets/ai3.png"
       ],
       "matches" : ["<all_urls>"]
     }
   ],
   "action": {
     "default_icon": {
-      "16": "assets/ai2.jpg",
-      "24": "assets/ai2.jpg",
-      "32": "assets/ai2.jpg"
+      "16": "assets/ai3.png",
+      "24": "assets/ai3.png",
+      "512": "assets/ai3.png"
     },
     "default_popup": "index.html",
     "default_title": "Falcon Hack AI"
