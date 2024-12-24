@@ -61,18 +61,48 @@ const chatBoxStyles = `
         }
 `;
 
+let lastPageVisited = "";
 
 const observer = new MutationObserver(() => {
-    addHelpButton();
+    handleContentChange();
 })
+
+function isPageChange() {
+    const currentPage = window.location.pathname;
+    if(currentPage === lastPageVisited) return false;
+    lastPageVisited = currentPage;
+    return true;
+}
 
 observer.observe(document.body,{childList: true, subtree: true});
 
-addHelpButton();
+handleContentChange();
+
+function handleContentChange(){
+    if(isPageChange()){
+        handlePageChange();
+    }
+}
 
 function onProblemsPage() {
     return window.location.pathname.startsWith("/problems/");
 }
+
+function cleanUpPage() {
+    const existingButton = document.getElementById("add-help-button");
+    if(existingButton) existingButton.remove();
+
+    const existingchatbox = document.getElementById("ai-chat-box");
+    if(existingchatbox) existingchatbox.remove();
+}
+
+function handlePageChange(){
+    if(onProblemsPage()){
+        cleanUpPage();
+        addHelpButton();
+    }
+}
+
 
 function addHelpButton() {
     console.log("Trigerring ! ");
@@ -96,6 +126,9 @@ function openAIHelpHandler() {
     console.log("AI button clicked !!");
 
     if(!onProblemsPage() || document.getElementById("ai-chat-box")) return;
+
+    const existingchatbox = document.getElementById("ai-chat-box");
+    if(existingchatbox) existingchatbox.remove();
 
     const chatBox = document.createElement("div");
     chatBox.id = "ai-chat-box";
