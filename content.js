@@ -22,7 +22,7 @@ const chatBoxStyles = `
     }
 
     #chat-header {
-        background-color: #4CAF50;
+        background-color: #ddf6ff;
         color: white;
         padding: 10px;
         font-size: 16px;
@@ -74,8 +74,8 @@ const chatBoxStyles = `
 
     #send-button {
         padding: 10px;
-        background-color: #4CAF50;
-        color: white;
+        background-color: #ddf6ff;
+        color: black;
         border: none;
         border-radius: 4px;
         cursor: pointer;
@@ -83,7 +83,7 @@ const chatBoxStyles = `
     }
 
     #send-button:hover {
-        background-color: #45a049;
+        background-color: #ddf6ff;
     }
 
     #chat-input, #send-button {
@@ -92,8 +92,8 @@ const chatBoxStyles = `
 
     /* Optional styling for the chat box header */
     #chat-header {
-        background-color: #4CAF50;
-        color: white;
+        background-color: #ddf6ff;
+        color: black;
         padding: 10px;
         font-size: 16px;
         font-weight: bold;
@@ -146,10 +146,27 @@ function handlePageChange(){
     }
 }
 
+function getProblemKey() {
+    // Select the element using its class name
+    const headingElement = document.getElementsByClassName('Header_resource_heading__cpRp1');
+    
+    if (headingElement.length > 0) {
 
+        console.log("if entered : ");
+        // Get the text content of the element
+        const headingText = headingElement[headingElement.length-1].textContent;
+        console.log('Extracted Heading:', headingElement);
+        return headingText;
+    } else {
+        console.log('Heading element not found.');
+        return null;
+    }
+}
 
+////////////////////////////
 
 function addHelpButton() {
+
     console.log("Trigerring ! ");
     if(!onProblemsPage() || document.getElementById("add-help-button")) return;
 
@@ -165,10 +182,37 @@ function addHelpButton() {
 
     helpButton.addEventListener("click", openAIHelpHandler);
     console.log("finished !! ");
-}
 
-function openAIHelpHandler() {
+    // console.log("Enter");
+    // console.log(getProblemKey());
+    // console.log("Exit");
+    
+}    
+
+
+
+async function openAIHelpHandler() {
     console.log("AI button clicked !!");
+
+    let problemId = "";
+
+    try {
+        // Wait for the heading content to be extracted
+        problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
+        console.log(`PROBLEM KEY : ${problemId}`);
+
+        // After the key is extracted, log success message
+        console.log("Problem key extracted successfully!");
+    } catch (error) {
+        console.error(error); // Handle any error that occurs while waiting for the element
+    }
+
+    console.log("Problem key extracted succesfully !");
+    console.log(problemId);
+
+    console.log("Send button clicked");
+
+    loadMessagesForProblem(problemId);
 
     if(!onProblemsPage() || document.getElementById("ai-chat-box")) return;
 
@@ -196,48 +240,155 @@ function openAIHelpHandler() {
     sendButton = document.getElementById("send-button");
 
     sendButton.addEventListener("click", () => handleSendMessage());
+}
 
+function waitForElementAndGetContent(selector, interval = 100) {
+    return new Promise((resolve, reject) => {
+        const checkExist = setInterval(() => {
+            const elements = document.getElementsByClassName(selector);
+            if (elements.length > 0 && elements[elements.length - 1].textContent.trim() !== "") {
+                clearInterval(checkExist); // Stop checking once the element is found
+                resolve(elements[elements.length - 1].textContent.trim());
+            }
+        }, interval);
+
+        // Optional timeout after 10 seconds to prevent infinite waiting
+        setTimeout(() => {
+            clearInterval(checkExist);
+            reject('Element not found within timeout');
+        }, 10000);
+    });
 }
 
 
 
 async function handleSendMessage() {
+    let problemId = "";
+
+    // let problemId = "";
+
+    try {
+        // Wait for the heading content to be extracted
+        problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
+        console.log(`PROBLEM KEY : ${problemId}`);
+
+        // After the key is extracted, log success message
+        console.log("Problem key extracted successfully!");
+    } catch (error) {
+        console.error(error); // Handle any error that occurs while waiting for the element
+    }
+
+    console.log("Problem key extracted succesfully !");
+    console.log(problemId);
+
     console.log("Send button clicked");
+
+    // loadMessagesForProblem(problemId);
+
     const chatInput = document.getElementById('chat-input');
     const chatMessages = document.getElementById('chat-messages');
+    let promptMessage = "";
 
     // Get user input and clear the input field
     const userMessage = chatInput.value;
     chatInput.value = "";  // Clear input after sending
     
     // Display user message in chat
-    addMessageToChat(userMessage, 'user');
+    addMessageToChat(userMessage, 'user',problemId);
+
+    const problemDescription = extractProblemDescription();
+
+    promptMessage = `This is the description of the current problem the user is dealing with:\n\n${problemDescription}\n\nIf the question asked below is irrelavant to the description, say that the question asked is irrelevant in one line. \n\n Please provide the answer to the following question:\n${userMessage}`;
+    
 
     // Send the message to the AI API and await the response
-    const botReply = await sendMessageToAPI(userMessage);
+    const botReply = await sendMessageToAPI(promptMessage);
 
     console.log("Bot Reply:", botReply);
 
     // Display bot response in chat
-    addMessageToChat(botReply, 'bot');
+    // console.log(botReply);
+    addMessageToChat(botReply, 'bot',problemId);
 }
 
-function addMessageToChat(message, sender) {
+
+////////////////////////////////////
+
+function addMessageToChat(message, sender, problemId) {
     const chatMessages = document.getElementById('chat-messages');
+    console.log(message);
 
     // Create a new message element
     const messageDiv = document.createElement('div');
-    messageDiv.classList.add('chat-message', sender);  // Add sender class to distinguish user/bot
+    messageDiv.classList.add('chat-message', sender); // Add sender class to distinguish user/bot
 
-    // Add message content
-    messageDiv.textContent = message;
+    // Add message content inside a <pre> tag for formatting
+    const preElement = document.createElement('pre');
+    preElement.textContent = message; // Use textContent to avoid HTML injection risks
+    messageDiv.appendChild(preElement);
 
     // Append the message to the chat
     chatMessages.appendChild(messageDiv);
 
     // Scroll to the latest message
     chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // let problemId = "";
+
+    saveMessageToStorage(message,sender, problemId);
 }
+
+// function saveMessageToStorage(message, sender, problemId){
+//     chromme.storage.local.get([problemId] , (result) => {
+//         let messages = result[problemId] || [];
+//         messages.push({ message,sender });
+//         chrome.storage.local.set({ [problemId]: messages}, () => {
+//             console.log('Message saved for problem:',problemId);
+//         });
+//     });
+// }
+
+function saveMessageToStorage(message, sender, problemId) {
+    chrome.storage.local.get([problemId], (result) => {
+        let messages = result[problemId] || [];
+        
+        // Check if the message already exists to avoid duplicates
+        const isDuplicate = messages.some(
+            (msg) => msg.message === message && msg.sender === sender
+        );
+        
+        if (!isDuplicate) {
+            // Add the new message if it's not a duplicate
+            messages.push({ message, sender });
+            chrome.storage.local.set({ [problemId]: messages }, () => {
+                console.log('Message saved for problem:', problemId);
+            });
+        } else {
+            console.log('Duplicate message detected, not saving.');
+        }
+    });
+}
+
+
+function loadMessagesForProblem(problemId) {
+    chrome.runtime.sendMessage({ action: "getProblemMessages", problemId }, (response) => {
+        const messages = response?.messages || [];
+        messages.forEach(({ message, sender }) => {
+            addMessageToChat(message, sender, problemId);
+        });
+    });
+}
+
+// Function to clear chat messages (optional)
+function clearChatMessages(problemId) {
+    chrome.storage.local.remove(problemId, () => {
+        console.log('Messages cleared for problem:', problemId);
+        const chatMessages = document.getElementById('chat-messages');
+        chatMessages.innerHTML = ''; // Clear the chat UI
+    });
+}
+
+
 
 
 async function sendMessageToAPI(userMessage){
