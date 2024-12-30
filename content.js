@@ -8,6 +8,8 @@
 
 const HelpButtonURL = chrome.runtime.getURL("assets/ai3.png");
 const AZ_PROBLEM_KEY = "AZ_PROBLEM_KEY";
+// let addButton = true;
+
 
 const chatBoxStyles = `
     #ai-chat-box {
@@ -110,6 +112,16 @@ const observer = new MutationObserver(() => {
     handleContentChange();
 })
 
+// const observer = new MutationObserver((mutations) => {
+//     mutations.forEach((mutation) => {
+//         // Check if relevant part of the DOM has changed
+//         if (mutation.addedNodes.length > 0) {
+//             handleContentChange();
+//         }
+//     });
+// });
+
+
 function isPageChange() {
     const currentPage = window.location.pathname;
     if(currentPage === lastPageVisited) return false;
@@ -121,10 +133,12 @@ observer.observe(document.body,{childList: true, subtree: true});
 
 handleContentChange();
 
+
 function handleContentChange(){
-    if(isPageChange()){
+    if(isPageChange() || !document.getElementById("add-help-button")){
         handlePageChange();
     }
+    
 }
 
 function onProblemsPage() {
@@ -163,6 +177,11 @@ function getProblemKey() {
     }
 }
 
+function getProblemId() {
+    const idMatch = window.location.pathname.match(/-(\d+)$/);
+    return idMatch ? idMatch[1] : null;
+}
+
 ////////////////////////////
 
 function addHelpButton() {
@@ -170,6 +189,16 @@ function addHelpButton() {
     console.log("Trigerring ! ");
     if(!onProblemsPage() || document.getElementById("add-help-button")) return;
 
+    ///////
+    // if(!addButton){
+    //     return;
+    // }
+    ///////
+    if(document.getElementsByClassName("coding_ask_doubt_button__FjwXJ").length == 0) {
+        return;
+    }
+
+    
     const helpButton = document.createElement("img");
     helpButton.id = "add-help-button";
     helpButton.src = HelpButtonURL;
@@ -194,18 +223,18 @@ function addHelpButton() {
 async function openAIHelpHandler() {
     console.log("AI button clicked !!");
 
-    let problemId = "";
+    let problemId = getProblemId();
 
-    try {
-        // Wait for the heading content to be extracted
-        problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
-        console.log(`PROBLEM KEY : ${problemId}`);
+    // try {
+    //     // Wait for the heading content to be extracted
+    //     problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
+    //     console.log(`PROBLEM KEY : ${problemId}`);
 
-        // After the key is extracted, log success message
-        console.log("Problem key extracted successfully!");
-    } catch (error) {
-        console.error(error); // Handle any error that occurs while waiting for the element
-    }
+    //     // After the key is extracted, log success message
+    //     console.log("Problem key extracted successfully!");
+    // } catch (error) {
+    //     console.error(error); // Handle any error that occurs while waiting for the element
+    // }
 
     console.log("Problem key extracted succesfully !");
     console.log(problemId);
@@ -263,20 +292,20 @@ function waitForElementAndGetContent(selector, interval = 100) {
 
 
 async function handleSendMessage() {
-    let problemId = "";
+    let problemId = getProblemId();
 
     // let problemId = "";
 
-    try {
-        // Wait for the heading content to be extracted
-        problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
-        console.log(`PROBLEM KEY : ${problemId}`);
+    // try {
+    //     // Wait for the heading content to be extracted
+    //     problemId = await waitForElementAndGetContent('Header_resource_heading__cpRp1');
+    //     console.log(`PROBLEM KEY : ${problemId}`);
 
-        // After the key is extracted, log success message
-        console.log("Problem key extracted successfully!");
-    } catch (error) {
-        console.error(error); // Handle any error that occurs while waiting for the element
-    }
+    //     // After the key is extracted, log success message
+    //     console.log("Problem key extracted successfully!");
+    // } catch (error) {
+    //     console.error(error); // Handle any error that occurs while waiting for the element
+    // }
 
     console.log("Problem key extracted succesfully !");
     console.log(problemId);
@@ -298,7 +327,13 @@ async function handleSendMessage() {
 
     const problemDescription = extractProblemDescription();
 
-    promptMessage = `This is the description of the current problem the user is dealing with:\n\n${problemDescription}\n\nIf the question asked below is irrelavant to the description, say that the question asked is irrelevant in one line. \n\n Please provide the answer to the following question:\n${userMessage}`;
+    const element = document.getElementsByClassName("d-flex align-items-center gap-1 text-blue-dark")[0];
+
+    const language = element?.textContent.trim();
+
+    const userProblemCode = getUserCode(problemId,language);
+
+    promptMessage = `This is the description of the current problem the user is dealing with:\n\n${problemDescription}\n\nThe user code is : \n\n${userProblemCode}\n\nIf the question asked below is irrelavant to the description, say that the question asked is irrelevant in one line. \n\n Please provide the answer to the following question:\n${userMessage}`;
     
 
     // Send the message to the AI API and await the response
@@ -309,6 +344,10 @@ async function handleSendMessage() {
     // Display bot response in chat
     // console.log(botReply);
     addMessageToChat(botReply, 'bot',problemId);
+
+    
+
+    // getUserCode(problemId,language);
 }
 
 
@@ -349,8 +388,9 @@ function addMessageToChat(message, sender, problemId) {
 // }
 
 function saveMessageToStorage(message, sender, problemId) {
-    chrome.storage.local.get([problemId], (result) => {
-        let messages = result[problemId] || [];
+
+    chrome.runtime.sendMessage({ action: "getProblemMessages", problemId }, (response) => {
+        const messages = response?.messages || [];
         
         // Check if the message already exists to avoid duplicates
         const isDuplicate = messages.some(
@@ -464,3 +504,28 @@ function extractProblemDescription() {
 };
 
 
+
+// AI button disappears when we change tabs like from description to hints
+// Extract hints from hint section and also codes
+
+
+function getUserCode(problemId,language){
+    // for (let i = 0; i < localStorage.length; i++) {
+    //     const key = localStorage.key(i);
+    //     const value = localStorage.getItem(key);
+    //     console.log(`Key: ${key}, Value: ${value}`);
+    // }
+    const keys = Object.keys(localStorage);
+
+    const targetKey = keys.find(key => key.includes(`${problemId}_${language}`));
+
+    if(targetKey) {
+        const value = localStorage.getItem(targetKey);
+        console.log(`Key found: ${targetKey}, Value: ${value}`);
+        return value;
+    }
+    else {
+        console.log("No key with the specified substring found.");
+        return null;
+    }
+}
