@@ -7,7 +7,6 @@
 // License: MIT
 
 const HelpButtonURL = chrome.runtime.getURL("assets/ai3.png");
-const AZ_PROBLEM_KEY = "AZ_PROBLEM_KEY";
 // let addButton = true;
 
 
