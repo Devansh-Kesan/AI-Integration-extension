@@ -27,7 +27,8 @@
         "assets/bookmark.png",
         "assets/delete.png",
         "assets/play.png",
-        "assets/ai3.png"
+        "assets/ai3.png",
+        "inject.js"
       ],
       "matches" : ["<all_urls>"]
     }

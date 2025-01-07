@@ -107,6 +107,26 @@ const chatBoxStyles = `
 
 let lastPageVisited = "";
 
+addInjectScript();
+
+const problemDataMap = new Map();
+
+window.addEventListener("xhrDatafetched", (event) => {
+    const data = event.detail;
+
+    console.log("Data received in content.js",data);
+
+    if(data.url && data.url.match(/https:\/\/api2\.maang\.in\/problems\/user\/\d+/)){
+        const idMatch = data.url.match(/\/(\d+)$/);
+        if(idMatch){
+            const id = idMatch[1];
+            problemDataMap.set(id,data.response); // Store response data by ID
+            console.log(`Stored data for problem ID ${id}:`,data.response);
+        }
+    }
+
+})
+
 const observer = new MutationObserver(() => {
     handleContentChange();
 })
@@ -152,9 +172,17 @@ function cleanUpPage() {
     if(existingchatbox) existingchatbox.remove();
 }
 
+function addInjectScript(){
+    const script = document.createElement("script");
+    script.src = chrome.runtime.getURL("inject.js");
+    script.onload = () => script.remove();
+    document.documentElement.appendChild(script);
+}
+
 function handlePageChange(){
     if(onProblemsPage()){
         cleanUpPage();
+        addInjectScript();
         addHelpButton();
     }
 }
@@ -179,6 +207,14 @@ function getProblemKey() {
 function getProblemId() {
     const idMatch = window.location.pathname.match(/-(\d+)$/);
     return idMatch ? idMatch[1] : null;
+}
+
+function getProblemDataById(id) {
+    if(id && problemDataMap.has(id)){
+        return problemDataMap.get(id);
+    }
+    console.log(`No data found for problem ID ${id}`);
+    return null;
 }
 
 ////////////////////////////
