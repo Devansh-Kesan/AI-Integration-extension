@@ -276,6 +276,8 @@ async function openAIHelpHandler() {
 
     console.log("Send button clicked");
 
+    console.log(getChatHistory(problemId));
+
     loadMessagesForProblem(problemId);
 
     if(!onProblemsPage() || document.getElementById("ai-chat-box")) return;
@@ -306,23 +308,23 @@ async function openAIHelpHandler() {
     sendButton.addEventListener("click", () => handleSendMessage());
 }
 
-function waitForElementAndGetContent(selector, interval = 100) {
-    return new Promise((resolve, reject) => {
-        const checkExist = setInterval(() => {
-            const elements = document.getElementsByClassName(selector);
-            if (elements.length > 0 && elements[elements.length - 1].textContent.trim() !== "") {
-                clearInterval(checkExist); // Stop checking once the element is found
-                resolve(elements[elements.length - 1].textContent.trim());
-            }
-        }, interval);
+// function waitForElementAndGetContent(selector, interval = 100) {
+//     return new Promise((resolve, reject) => {
+//         const checkExist = setInterval(() => {
+//             const elements = document.getElementsByClassName(selector);
+//             if (elements.length > 0 && elements[elements.length - 1].textContent.trim() !== "") {
+//                 clearInterval(checkExist); // Stop checking once the element is found
+//                 resolve(elements[elements.length - 1].textContent.trim());
+//             }
+//         }, interval);
 
-        // Optional timeout after 10 seconds to prevent infinite waiting
-        setTimeout(() => {
-            clearInterval(checkExist);
-            reject('Element not found within timeout');
-        }, 10000);
-    });
-}
+//         // Optional timeout after 10 seconds to prevent infinite waiting
+//         setTimeout(() => {
+//             clearInterval(checkExist);
+//             reject('Element not found within timeout');
+//         }, 10000);
+//     });
+// }
 
 
 
@@ -360,19 +362,20 @@ async function handleSendMessage() {
     // Display user message in chat
     addMessageToChat(userMessage, 'user',problemId);
 
-    const problemDescription = extractProblemDescription();
+    // const problemDescription = extractProblemDescription();
 
-    const element = document.getElementsByClassName("d-flex align-items-center gap-1 text-blue-dark")[0];
+    // const element = document.getElementsByClassName("d-flex align-items-center gap-1 text-blue-dark")[0];
 
-    const language = element?.textContent.trim();
+    // const language = element?.textContent.trim();
 
-    const userProblemCode = getUserCode(problemId,language);
+    // const userProblemCode = getUserCode(problemId,language);
 
-    promptMessage = `This is the description of the current problem the user is dealing with:\n\n${problemDescription}\n\nThe user code is : \n\n${userProblemCode}\n\nIf the question asked below is irrelavant to the description, say that the question asked is irrelevant in one line. \n\n Please provide the answer to the following question:\n${userMessage}`;
+    // promptMessage = `This is the description of the current problem the user is dealing with:\n\n${problemDescription}\n\nThe user code is : \n\n${userProblemCode}\n\nIf the question asked below is irrelavant to the description, say that the question asked is irrelevant in one line. \n\n Please provide the answer to the following question:\n${userMessage}`;
     
 
+
     // Send the message to the AI API and await the response
-    const botReply = await sendMessageToAPI(promptMessage);
+    const botReply = await sendMessageToAPI(userMessage);
 
     console.log("Bot Reply:", botReply);
 
@@ -463,24 +466,56 @@ function clearChatMessages(problemId) {
     });
 }
 
+// Function to retrive chat history from Chrome storage
+function getChatHistory(id){
+    return new Promise((resolve,reject) => {
+        chrome.storage.local.get([id], (result) => {
+            if(chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            }
+            else{
+                resolve(result[id] || []); // Default to an empty array if no history is found
+            }
+        });
+    });
+}
 
 
+// let chatHistory = []; // Maintain conversation history
 
 async function sendMessageToAPI(userMessage){
     const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
     const API_KEY = "AIzaSyA3ix28txG_5rH15PqkuPNoQF85dtJY4Fs";
 
     try{
+        console.log("Inside sendmessagetoapi");
+        const id = getProblemId();
+        let chatHistory = await getChatHistory(id);
+
+        if(chatHistory.length === 0){
+            // if the chat history is empty, build the initial prompt
+            const initialprompt = await buildInitialPrompt(userMessage);
+
+            chatHistory = [{
+                role: "user",
+                parts: [{ text: initialprompt }]
+            }];
+        }
+        else{
+            // Add the user's message to the chat history
+            console.log(chatHistory);
+            chatHistory.push({
+                role: "user",
+                parts: [{text: userMessage}]
+            });
+        }
+
+        
         const payload = {
-            contents: [
-                {
-                    parts: [
-                        { text: userMessage }
-                    ]
-                }
-            ]
+            contents: chatHistory
         };
         
+        // send the request
         const response = await fetch(`${API_URL}?key=${API_KEY}`, {
             method: "POST",
             headers: {
@@ -497,7 +532,7 @@ async function sendMessageToAPI(userMessage){
 
         const data = await response.json();
 
-        return data.candidates &&
+        const aiResponse = data.candidates &&
         data.candidates[0] &&
         data.candidates[0].content &&
         data.candidates[0].content.parts &&
@@ -505,12 +540,39 @@ async function sendMessageToAPI(userMessage){
         ? data.candidates[0].content.parts[0].text
         : "No response from the API.";
 
-        
+        // Add the AI's response to the chat history
+        console.log(typeof chatHistory, Array.isArray(chatHistory), chatHistory);
+        chatHistory.push({
+            role: "model",
+            parts: [{text: aiResponse}]
+        });
+
+        // await setChatHistory(id,chatHistory);
+
+        return aiResponse;
+
+
     }
     catch(error) {
         console.log("Error sending message to API : ",error);
         return "An error occured while connecting to the API. ";
     }
+}
+
+function setChatHistory(id, chatHistory) {
+    return new Promise((resolve,reject) => {
+        const data = {};
+        data[id] = chatHistory;
+
+        chrome.storage.local.set(data, () => {
+            if(chrome.runtime.lastError){
+                reject(chrome.runtime.lastError);
+            }
+            else{
+                resolve();
+            }
+        });
+    });
 }
 
 
@@ -563,4 +625,26 @@ function getUserCode(problemId,language){
         console.log("No key with the specified substring found.");
         return null;
     }
+}
+
+
+
+async function buildInitialPrompt(userMessage){
+
+    console.log("Building initial prompt ::");
+    const problemId = getProblemId();
+
+    const element = document.getElementsByClassName("d-flex align-items-center gap-1 text-blue-dark")[0];
+
+    const language = element?.textContent.trim();
+
+    const problemData = getProblemDataById(problemId);
+    const currentCode = getUserCode(problemId,language);
+
+    console.log(`Problem Data : ${problemData}`);
+
+    promptMessage = `The user code is : \n\n${currentCode}\n\nPlease provide the answer to the following question:\n${userMessage}`;
+    
+
+    return promptMessage;
 }
